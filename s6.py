@@ -333,4 +333,183 @@ try:
 except Exception as e:
     print(f"⚠ Chart 6-4 (regression) failed: {e}")
 
+# ==============================================================================
+# Chart 6-5: Multivariate Scatter Plot (Organization × Projects × Budget × Academic Field)
+# ==============================================================================
+
+try:
+    # Prepare data: organization-level aggregation with dominant academic field
+    
+    # Column name for academic field (with space handling)
+    acad_field_col = 'گروه عمده تحصیلی'
+    
+    if acad_field_col not in df.columns:
+        raise ValueError(f"Column '{acad_field_col}' not found in dataset")
+    
+    # Normalize academic field values (remove extra spaces)
+    df[acad_field_col] = df[acad_field_col].apply(
+        lambda x: normalize_name(x).strip() if pd.notna(x) else 'نامعین'
+    )
+    
+    # Organization-level aggregation
+    org_stats = df.groupby(device_col).agg({
+        credit_col: ['sum', 'count'],  # Total budget and number of projects
+        year_col: lambda x: x.nunique(),  # Number of active years
+        acad_field_col: lambda x: x.mode()[0] if len(x.mode()) > 0 else 'نامعین'  # Dominant field
+    }).reset_index()
+    
+    org_stats.columns = ['organization', 'total_budget', 'n_projects', 'n_years', 'dominant_field']
+    
+    # Filter organizations with at least 3 projects for clarity
+    org_stats = org_stats[org_stats['n_projects'] >= 3].reset_index(drop=True)
+    
+    # Get top 40 organizations by total budget for better visualization
+    org_stats = org_stats.nlargest(40, 'total_budget')
+    
+    # Map academic fields to colors
+    unique_fields = org_stats['dominant_field'].unique()
+    
+    # Define color palette for academic fields
+    field_colors = {
+        'فنی و مهندسی': '#3D5A80',  # Blue
+        'علوم پزشکی': '#EE6C4D',     # Orange-red
+        'علوم پایه': '#98C1D9',       # Light blue
+        'علوم انسانی': '#E0FBFC',    # Very light cyan
+        'کشاورزی': '#2A9D8F',         # Teal
+        'نامعین': '#CCCCCC'            # Gray
+    }
+    
+    # Assign colors to fields (fallback to gray for unknown fields)
+    org_stats['color'] = org_stats['dominant_field'].map(
+        lambda x: field_colors.get(x, '#CCCCCC')
+    )
+    
+    # Create scatter plot
+    fig, ax = plt.subplots(figsize=(16, 10))
+    
+    # Normalize point sizes (scale by number of years: 1-6 years)
+    size_min, size_max = 100, 800
+    n_years_normalized = (org_stats['n_years'] - org_stats['n_years'].min()) / \
+                        (org_stats['n_years'].max() - org_stats['n_years'].min())
+    point_sizes = size_min + n_years_normalized * (size_max - size_min)
+    
+    # Plot by academic field for legend
+    for field in unique_fields:
+        mask = org_stats['dominant_field'] == field
+        subset = org_stats[mask]
+        
+        if len(subset) == 0:
+            continue
+        
+        # Get sizes for this subset
+        subset_sizes = point_sizes[mask]
+        
+        ax.scatter(
+            subset['n_projects'],
+            subset['total_budget'] / 1000,  # Convert to billion Rials
+            s=subset_sizes,
+            c=subset['color'].values,
+            alpha=0.6,
+            edgecolors='black',
+            linewidth=1.2,
+            label=fix_persian_text(field)
+        )
+    
+    # Add organization labels for top 10 by budget
+    top_orgs = org_stats.nlargest(10, 'total_budget')
+    for _, row in top_orgs.iterrows():
+        ax.annotate(
+            fix_persian_text(row['organization'][:30] + '...' if len(row['organization']) > 30 else row['organization']),
+            xy=(row['n_projects'], row['total_budget'] / 1000),
+            xytext=(5, 5),
+            textcoords='offset points',
+            fontsize=8,
+            alpha=0.8,
+            ha='left',
+            va='bottom',
+            bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7, edgecolor='gray', linewidth=0.5)
+        )
+    
+    # Configure axes
+    ax.set_xlabel(fix_persian_text('تعداد طرح‌های پژوهشی'), 
+                  fontsize=14, fontweight='bold', labelpad=10)
+    ax.set_ylabel(fix_persian_text('اعتبار کل (میلیارد ریال)'), 
+                  fontsize=14, fontweight='bold', labelpad=10)
+    ax.set_title(fix_persian_text('تحلیل چندمتغیره دستگاه‌های اجرایی\n(اندازه نقاط: تعداد سال‌های فعالیت)'), 
+                 fontsize=16, fontweight='bold', pad=20)
+    
+    # Grid
+    ax.grid(True, alpha=0.3, linestyle='--', linewidth=0.8)
+    ax.set_axisbelow(True)
+    
+    # Format tick labels with Persian numbers
+    ax.set_xticklabels([convert_to_persian_number(t.get_text()) 
+                        for t in ax.get_xticklabels()])
+    ax.set_yticklabels([convert_to_persian_number(t.get_text()) 
+                        for t in ax.get_yticklabels()])
+    
+    ax.tick_params(axis='both', labelsize=11)
+    
+    # Legend configuration
+    legend = ax.legend(
+        title=fix_persian_text('گروه تحصیلی غالب'),
+        loc='upper left',
+        frameon=True,
+        facecolor='white',
+        edgecolor='#CCCCCC',
+        framealpha=0.95,
+        fontsize=10,
+        title_fontsize=11
+    )
+    
+    # Add size reference in text box
+    size_text = f"""{fix_persian_text('راهنمای اندازه نقاط:')}
+{fix_persian_text('کوچک')}: {convert_to_persian_number('۱-۲')} {fix_persian_text('سال')}
+{fix_persian_text('متوسط')}: {convert_to_persian_number('۳-۴')} {fix_persian_text('سال')}
+{fix_persian_text('بزرگ')}: {convert_to_persian_number('۵-۶')} {fix_persian_text('سال')}
+"""
+    
+    ax.text(0.98, 0.02, size_text,
+            transform=ax.transAxes,
+            verticalalignment='bottom',
+            horizontalalignment='right',
+            fontsize=9,
+            bbox=dict(boxstyle='round,pad=0.6', facecolor='white', 
+                     edgecolor='#CCCCCC', alpha=0.9, linewidth=1.2))
+    
+    # Styling
+    ax.set_facecolor('#F8F9FA')
+    fig.patch.set_facecolor('white')
+    
+    for spine in ax.spines.values():
+        spine.set_edgecolor('#CCCCCC')
+        spine.set_linewidth(1.5)
+    
+    plt.tight_layout()
+    
+    # Save chart
+    outpath = fig_dir / 'chart_6_5_multivariate_scatter.png'
+    plt.savefig(outpath, dpi=300, bbox_inches='tight', facecolor='white')
+    plt.close()
+    
+    print(f"✓ Chart 6-5 saved: {outpath}")
+    
+    # Print statistics
+    print("\n" + "="*70)
+    print("Chart 6-5: Multivariate Analysis Statistics")
+    print("="*70)
+    print(f"\nTotal organizations analyzed: {len(org_stats)}")
+    print(f"\nAcademic field distribution:")
+    field_dist = org_stats['dominant_field'].value_counts()
+    for field, count in field_dist.items():
+        print(f"  • {field}: {count} organizations")
+    
+    print(f"\nYears of activity range: {org_stats['n_years'].min()} - {org_stats['n_years'].max()} years")
+    print(f"Average projects per organization: {org_stats['n_projects'].mean():.1f}")
+    print(f"Average budget per organization: {org_stats['total_budget'].mean():,.0f} million Rials")
+
+except Exception as e:
+    print(f"⚠ Chart 6-5 (multivariate scatter) failed: {e}")
+
+
 print("✓ فصل ۶ — نمودارها تولید شد.")

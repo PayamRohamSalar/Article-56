@@ -113,11 +113,11 @@ def format_number_with_separator(number, use_persian=True):
     return formatted
 
 # ==============================================================================
-# تنظیم مسیر ذخیره‌سازی نمودارها
+# Setup Output Directory
 # ==============================================================================
 
 # ایجاد فولدر fig در صورت عدم وجود
-output_dir = Path.cwd() / 'fig'
+output_dir = Path.cwd() / 'fig/S3'
 output_dir.mkdir(exist_ok=True)
 print(f"✓ Output directory: {output_dir}")
 
@@ -621,6 +621,138 @@ plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
 plt.close()
 
 print(f"✓ Chart 6 saved: {output_path}")
+
+# ==============================================================================
+# Chart 7: Budget Comparison between Academic and Non-Academic Projects (Box Plot)
+# ==============================================================================
+
+fig, ax = plt.subplots(figsize=(14, 8))
+
+# Prepare data for boxplot: Academic vs Non-Academic
+academic_data = df[df['نوع دانشگاهی'] == 'دانشگاهی']['اعتبار'].values
+non_academic_data = df[df['نوع دانشگاهی'] == 'غیر دانشگاهی']['اعتبار'].values
+
+# Combine data for boxplot
+data_for_comparison = [academic_data, non_academic_data]
+
+# Create labels with Persian text
+labels = [fix_persian_text('دانشگاهی'), fix_persian_text('غیر دانشگاهی')]
+
+# Plot boxplot with custom styling
+bp = ax.boxplot(data_for_comparison, labels=labels,
+                patch_artist=True, notch=True, widths=0.5,
+                boxprops=dict(linewidth=1.8),
+                whiskerprops=dict(linewidth=1.8),
+                capprops=dict(linewidth=1.8),
+                medianprops=dict(linewidth=2.5, color='red'),
+                showfliers=True,
+                flierprops=dict(marker='o', markerfacecolor='gray', 
+                               markersize=4, linestyle='none', alpha=0.3))
+
+# Apply color palette to boxes
+colors_box = ['#3D5A80', '#EE6C4D']  # Academic: Blue, Non-Academic: Orange
+for patch, color in zip(bp['boxes'], colors_box):
+    patch.set_facecolor(color)
+    patch.set_alpha(0.7)
+    patch.set_edgecolor('black')
+
+# Set logarithmic scale for Y-axis
+ax.set_yscale('log')
+
+# Configure axes with Persian RTL text
+ax.set_xlabel(fix_persian_text('نوع طرح'), 
+              fontsize=14, fontweight='bold', labelpad=10)
+ax.set_ylabel(fix_persian_text('اعتبار (میلیون ریال - مقیاس لگاریتمی)'), 
+              fontsize=14, fontweight='bold', labelpad=10)
+ax.set_title(fix_persian_text('مقایسه توزیع اعتبارات طرح‌های دانشگاهی و غیردانشگاهی'), 
+             fontsize=16, fontweight='bold', pad=25)
+
+# Grid configuration
+ax.grid(True, alpha=0.3, linestyle='--', linewidth=0.8, axis='y')
+ax.set_axisbelow(True)
+
+# Format Y-axis with Persian numbers
+def format_y_axis_budget_comparison(x, p):
+    """Format Y-axis with Persian numbers for logarithmic scale"""
+    return format_number_with_separator(x, use_persian=True)
+
+ax.yaxis.set_major_formatter(plt.FuncFormatter(format_y_axis_budget_comparison))
+ax.tick_params(axis='both', labelsize=12)
+
+# Add statistical annotations with Persian text
+# Calculate median, mean, and quartiles
+stats_academic = {
+    'median': np.median(academic_data),
+    'mean': np.mean(academic_data),
+    'q1': np.percentile(academic_data, 25),
+    'q3': np.percentile(academic_data, 75)
+}
+
+stats_non_academic = {
+    'median': np.median(non_academic_data),
+    'mean': np.mean(non_academic_data),
+    'q1': np.percentile(non_academic_data, 25),
+    'q3': np.percentile(non_academic_data, 75)
+}
+
+# Add text box with statistics (optional - can be commented out if too crowded)
+stats_text = f"""{fix_persian_text('دانشگاهی:')}
+{fix_persian_text('میانه:')} {format_number_with_separator(stats_academic['median'], use_persian=True)}
+{fix_persian_text('میانگین:')} {format_number_with_separator(stats_academic['mean'], use_persian=True)}
+
+{fix_persian_text('غیردانشگاهی:')}
+{fix_persian_text('میانه:')} {format_number_with_separator(stats_non_academic['median'], use_persian=True)}
+{fix_persian_text('میانگین:')} {format_number_with_separator(stats_non_academic['mean'], use_persian=True)}
+"""
+
+ax.text(0.02, 0.98, stats_text,
+        transform=ax.transAxes,
+        verticalalignment='top',
+        horizontalalignment='left',
+        fontsize=10,
+        bbox=dict(boxstyle='round,pad=0.8', facecolor='white', 
+                 edgecolor='#CCCCCC', alpha=0.9, linewidth=1.5))
+
+# Apply background styling
+ax.set_facecolor('#F8F9FA')
+fig.patch.set_facecolor('white')
+
+# Configure border spines
+for spine in ax.spines.values():
+    spine.set_edgecolor('#CCCCCC')
+    spine.set_linewidth(1.5)
+
+# Apply tight layout
+plt.tight_layout()
+
+# Save chart to 'fig' directory
+output_path = output_dir / 'chart_3_7.png'
+plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
+plt.close()
+
+print(f"✓ Chart 7 saved: {output_path}")
+
+# Print comparison statistics
+print("\n" + "="*70)
+print("Chart 7: Budget Comparison Statistics")
+print("="*70)
+print(f"\n📊 Academic Projects:")
+print(f"   • Count: {len(academic_data):,}")
+print(f"   • Median: {stats_academic['median']:,.0f} million Rials")
+print(f"   • Mean: {stats_academic['mean']:,.0f} million Rials")
+print(f"   • Q1: {stats_academic['q1']:,.0f} million Rials")
+print(f"   • Q3: {stats_academic['q3']:,.0f} million Rials")
+
+print(f"\n📊 Non-Academic Projects:")
+print(f"   • Count: {len(non_academic_data):,}")
+print(f"   • Median: {stats_non_academic['median']:,.0f} million Rials")
+print(f"   • Mean: {stats_non_academic['mean']:,.0f} million Rials")
+print(f"   • Q1: {stats_non_academic['q1']:,.0f} million Rials")
+print(f"   • Q3: {stats_non_academic['q3']:,.0f} million Rials")
+
+# Statistical test
+median_ratio = stats_non_academic['median'] / stats_academic['median']
+print(f"\n📈 Median Ratio (Non-Academic/Academic): {median_ratio:.2f}x")
 
 
 # ==============================================================================
