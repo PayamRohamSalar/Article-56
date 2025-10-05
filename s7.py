@@ -74,9 +74,9 @@ def format_number_with_separator(number, use_persian: bool=True) -> str:
 # Paths & IO
 # =============================================================================
 base_dir = Path.cwd()
-data_file = base_dir / 'data' / 'Q_Sample_Data.xlsx'
+data_file = base_dir / 'data' / 'Q_Useful_Source_Data.xlsx'
 if not data_file.exists():
-    alt = base_dir / 'Q_Sample_Data.xlsx'
+    alt = base_dir / 'Q_Useful_Source_Data.xlsx'
     if alt.exists():
         data_file = alt
     else:

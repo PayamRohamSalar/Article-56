@@ -126,7 +126,7 @@ print(f"✓ Output directory: {output_dir}")
 # ==============================================================================
 
 base_dir = Path.cwd()
-data_file = base_dir / 'data' / 'Q_Sample_Data.xlsx'
+data_file = base_dir / 'data' / 'Q_Useful_Source_Data.xlsx'
 if not data_file.exists():
     raise FileNotFoundError(f"Expected data file not found: {data_file}")
 
