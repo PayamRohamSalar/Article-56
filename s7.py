@@ -1,11 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-فصل ۷ - تحلیل عملکرد سال ۱۴۰۳ (s7.py)
-مطابق با سبک فصول s3/s4/s5/s6:
-- رندر متن فارسی RTL (arabic_reshaper + bidi)
-- اعداد فارسی در تمام برچسب‌ها
-- تنظیمات فونت Vazirmatn
-خروجی‌ها:
+Outputs:
   fig/S7/chart_7_1_comparison_1402_1403.png
   fig/S7/chart_7_2_growth_rate.png
   fig/S7/chart_7_3_radar_chart.png

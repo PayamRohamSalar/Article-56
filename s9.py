@@ -1,11 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-فصل ۹ - تحلیل جغرافیایی تفصیلی سال ۱۴۰۳ (s9.py)
-مطابق با سبک فصول قبلی:
-- رندر متن فارسی RTL (arabic_reshaper + bidi)
-- اعداد فارسی در تمام برچسب‌ها
-- تنظیمات فونت Vazirmatn
-خروجی‌ها:
+Outputs:
   fig/S9/chart_9_1_heatmap_iran.png
   fig/S9/chart_9_2_top_bottom_provinces.png
   fig/S9/chart_9_3_top_provinces_comparison.png

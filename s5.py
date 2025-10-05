@@ -1,6 +1,4 @@
 
-# Code by help of ChatGPT
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13,6 +11,12 @@ warnings.filterwarnings('ignore')
 # For proper Persian (Farsi) rendering
 import arabic_reshaper
 from bidi.algorithm import get_display
+
+# NEW: geo imports for choropleth
+try:
+    import geopandas as gpd
+except Exception as e:
+    gpd = None
 
 # ==============================================================================
 # Font Configuration for Persian (Farsi) Text  (aligned with s3/s4)
@@ -127,6 +131,19 @@ def lorenz_curve_points(x: np.ndarray):
     cum_pop = np.arange(0, n + 1) / n
     return cum_pop, cum_values
 
+# NEW: name normalizer so DF names match Geo names
+def normalize_name(s):
+    if s is None or (isinstance(s, float) and np.isnan(s)):
+        return None
+    s = str(s).strip()
+    # unify Arabic/Persian forms + remove ZWNJ
+    replacements = {
+        'ي': 'ی', 'ك': 'ک', 'ۀ': 'ه', 'ة': 'ه', '‌': '', '\u200c': ''
+    }
+    for a,b in replacements.items():
+        s = s.replace(a,b)
+    return s
+
 # ==============================================================================
 # Paths & IO
 # ==============================================================================
@@ -140,9 +157,23 @@ if not data_file.exists():
     else:
         raise FileNotFoundError(f"Expected data file not found at: {data_file} (or {alt})")
 
-output_dir = base_dir / 'fig'
+output_dir = base_dir / 'fig/S5'
 output_dir.mkdir(exist_ok=True)
 print(f"✓ Output directory: {output_dir}")
+
+# NEW: GeoJSON candidate paths (your Windows path first)
+geojson_candidates = [
+    Path(r'D:\OneDrive\AI-Project\Article56\iran-geojson\iran_geo.json'),
+    base_dir / 'data' / 'iran_geo.json',
+    base_dir / 'iran_geo.json'
+]
+geojson_file = None
+for p in geojson_candidates:
+    if p.exists():
+        geojson_file = p
+        break
+if geojson_file is None:
+    print('⚠ GeoJSON not found. Choropleth will be skipped unless path is corrected.')
 
 # ==============================================================================
 # Load & Prepare Data
@@ -173,9 +204,8 @@ print(f"✓ Years: {df['سال'].min()} – {df['سال'].max()}")
 print(f"✓ Province column: {province_col}")
 
 # ==============================================================================
-# Chart 5-1: Heatmap ساده استان × سال (اعتبار)
+# Chart 5-1: Heatmap ساده استان × سال (اعتبار)  — (بدون تغییر)
 # ==============================================================================
-# Pivot: rows = provinces, columns = years, values = sum of credits
 pivot_cred = (df
               .groupby([province_col, 'سال'])[value_col]
               .sum()
@@ -183,7 +213,6 @@ pivot_cred = (df
               .pivot(index=province_col, columns='سال', values=value_col)
               .fillna(0))
 
-# Sort provinces by total credit (descending)
 pivot_cred['__TOTAL__'] = pivot_cred.sum(axis=1)
 pivot_cred = pivot_cred.sort_values('__TOTAL__', ascending=False)
 pivot_cred = pivot_cred.drop(columns='__TOTAL__')
@@ -196,7 +225,6 @@ sns.heatmap(pivot_cred,
             cbar_kws={'label': fix_persian_text('اعتبار (میلیون ریال)')},
             ax=ax)
 
-# Persianize tick labels
 ax.set_yticklabels([fix_persian_text(t.get_text()) for t in ax.get_yticklabels()], rotation=0, fontsize=10)
 ax.set_xticklabels([convert_to_persian_number(t.get_text()) for t in ax.get_xticklabels()], rotation=0, fontsize=10)
 
@@ -210,26 +238,21 @@ plt.close()
 print(f"✓ Chart 5-1 saved: {out1}")
 
 # ==============================================================================
-# Chart 5-2: Top 10 & Bottom 10 Provinces by Total Credit
+# Chart 5-2: Top 10 & Bottom 10 Provinces by Total Credit  — (بدون تغییر)
 # ==============================================================================
 province_credit_total = safe_group_sum(df, province_col, value_col)
-
-top10 = province_credit_total.head(10)[::-1]   # for horizontal bar (ascending order)
+top10 = province_credit_total.head(10)[::-1]
 bottom10 = province_credit_total.tail(10)[::-1]
 
 def plot_rank_bar(series: pd.Series, title: str, filename: str):
     fig, ax = plt.subplots(figsize=(12, 7))
-    # horizontal bar
-    bars = ax.barh(range(len(series)), series.values, color=sns.color_palette('RdYlGn', n_colors=len(series)))
-    # y labels
+    ax.barh(range(len(series)), series.values, color=sns.color_palette('RdYlGn', n_colors=len(series)))
     ax.set_yticks(range(len(series)))
     ax.set_yticklabels([fix_persian_text(i) for i in series.index], fontsize=11)
-    # x label & title
     ax.set_xlabel(fix_persian_text('اعتبار (میلیون ریال)'), fontsize=13, fontweight='bold', labelpad=8)
     ax.set_title(fix_persian_text(title), fontsize=15, fontweight='bold', pad=14)
     ax.grid(True, axis='x', alpha=0.25, linestyle='--')
     ax.set_axisbelow(True)
-    # annotate values
     maxv = series.values.max() if len(series) else 0
     for i, v in enumerate(series.values):
         ax.text(v + maxv * 0.01, i, format_number_with_separator(v, True),
@@ -245,11 +268,9 @@ plot_rank_bar(top10, '۱۰ استان با بیشترین اعتبارات (۱۳
 plot_rank_bar(bottom10, '۱۰ استان با کمترین اعتبارات (۱۳۹۸–۱۴۰۳)', 'chart_5_2_bottom10.png')
 
 # ==============================================================================
-# Chart 5-3: Lorenz Curve + Gini for Provinces (Credits & Project Counts)
+# Chart 5-3: Lorenz Curve + Gini for Provinces (Credits & Project Counts) — (بدون تغییر)
 # ==============================================================================
-# Credits by province
 cred_by_prov = safe_group_sum(df, province_col, value_col)
-# Project count by province
 cnt_by_prov = df.groupby(province_col).size().sort_values(ascending=False)
 
 def plot_lorenz_gini(values: pd.Series, title: str, filename: str):
@@ -257,18 +278,14 @@ def plot_lorenz_gini(values: pd.Series, title: str, filename: str):
     gini = gini_coefficient(arr)
     x, y = lorenz_curve_points(arr)
     fig, ax = plt.subplots(figsize=(8, 8))
-    # line of equality
     ax.plot([0,1], [0,1], linestyle='--', linewidth=1.5, color='gray', label=fix_persian_text('خط برابری'))
-    # lorenz
     ax.plot(x, y, linewidth=3)
-    # fill area between
     ax.fill_between(x, y, x, alpha=0.15)
     ax.set_xlim(0, 1); ax.set_ylim(0, 1)
     ax.set_xlabel(fix_persian_text('سهم تجمعی استان‌ها'), fontsize=13, fontweight='bold')
     ax.set_ylabel(fix_persian_text('سهم تجمعی مقدار'), fontsize=13, fontweight='bold')
     title_txt = f"{title}\n{fix_persian_text('ضریب جینی')}: {convert_to_persian_number(f'{gini:.3f}')}"
     ax.set_title(fix_persian_text(title_txt), fontsize=15, fontweight='bold', pad=14)
-    # ticks as Persian percentages
     ticks = np.linspace(0,1,6)
     ax.set_xticks(ticks); ax.set_yticks(ticks)
     ax.set_xticklabels([convert_to_persian_number(f'{int(t*100)}%') for t in ticks])
@@ -283,4 +300,57 @@ def plot_lorenz_gini(values: pd.Series, title: str, filename: str):
 plot_lorenz_gini(cred_by_prov, 'منحنی لورنز اعتبارات استان‌ها (۱۳۹۸–۱۴۰۳)', 'chart_5_3_lorenz_credit.png')
 plot_lorenz_gini(cnt_by_prov, 'منحنی لورنز تعداد طرح‌های استان‌ها (۱۳۹۸–۱۴۰۳)', 'chart_5_3_lorenz_projects.png')
 
-print("✓ فصل ۵ (مرحله A) — نمودارها با موفقیت تولید شد.")
+# ==============================================================================
+# Chart 5-4 (NEW): Choropleth — اعتبار سال ۱۴۰۳ به تفکیک استان
+# ==============================================================================
+if gpd is None:
+    print('⚠ geopandas is not installed. Run: pip install geopandas shapely fiona pyproj rtree')
+elif geojson_file is None:
+    print('⚠ GeoJSON path not found. Please update geojson_candidates to the correct path.')
+else:
+    try:
+        gdf_prov = gpd.read_file(geojson_file)
+        # استانداردسازی نام‌ها برای جوین
+        if 'NAME_1' not in gdf_prov.columns and 'name' in gdf_prov.columns:
+            gdf_prov = gdf_prov.rename(columns={'name': 'NAME_1'})
+        gdf_prov['prov_norm'] = gdf_prov['NAME_1'].map(normalize_name)
+        # داده سال ۱۴۰۳
+        df_1403 = df[df['سال'] == 1403].copy()
+        df_1403['prov_norm'] = df_1403[province_col].map(normalize_name)
+        summ_1403 = (df_1403
+                     .groupby('prov_norm')[value_col]
+                     .sum()
+                     .reset_index()
+                     .rename(columns={value_col: 'credit_1403'}))
+        gdf_plot = gdf_prov.merge(summ_1403, on='prov_norm', how='left')
+        gdf_plot['credit_1403'] = gdf_plot['credit_1403'].fillna(0)
+        gdf_plot['centroid'] = gdf_plot.geometry.representative_point()
+        # رسم نقشه
+        fig, ax = plt.subplots(figsize=(10, 12))
+        gdf_plot.plot(
+            ax=ax, column='credit_1403', cmap='YlGnBu',
+            linewidth=0.6, edgecolor='#888', legend=True,
+            legend_kwds={'label': fix_persian_text('اعتبار ۱۴۰۳ (میلیون ریال)')}
+        )
+        # برچسب‌گذاری فارسی (نام استان)
+        for _, row in gdf_plot.iterrows():
+            x, y = row['centroid'].x, row['centroid'].y
+            ax.text(x, y, fix_persian_text(row['NAME_1']), ha='center', va='center', fontsize=7, color='#333', alpha=0.9)
+        # تیتر و ظاهر
+        ax.set_title(fix_persian_text('پراکنش اعتبارات سال ۱۴۰۳ به تفکیک استان (Choropleth)'), fontsize=16, fontweight='bold', pad=12)
+        ax.set_axis_off()
+        # فارسی‌سازی اعداد رنگ‌نما
+        try:
+            cax = ax.get_figure().axes[-1]
+            cax.set_yticklabels([convert_to_persian_number(t.get_text()) for t in cax.get_yticklabels()])
+        except Exception:
+            pass
+        out_map = output_dir / 'chart_5_4_choropleth_1403.png'
+        plt.tight_layout()
+        plt.savefig(out_map, dpi=300, bbox_inches='tight', facecolor='white')
+        plt.close()
+        print(f'✓ Chart 5-4 saved: {out_map}')
+    except Exception as e:
+        print(f'⚠ Choropleth failed: {e}')
+
+print("✓ فصل ۵ — نمودارها تولید شد.")

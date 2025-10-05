@@ -1,11 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-فصل ۸ - تحلیل دستگاه‌ها و حوزه‌های راهبردی در سال ۱۴۰۳ (s8.py)
-مطابق با سبک فصول قبلی:
-- رندر متن فارسی RTL (arabic_reshaper + bidi)
-- اعداد فارسی در تمام برچسب‌ها
-- تنظیمات فونت Vazirmatn
-خروجی‌ها:
+Outputs:
   fig/S8/chart_8_1_top20_devices_count.png
   fig/S8/chart_8_2_top20_devices_credit.png
   fig/S8/chart_8_3_emerging_devices.png
